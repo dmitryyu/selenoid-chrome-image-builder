@@ -1,0 +1,84 @@
+name: Build and Push Chrome Browser Image
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '0 0 * * 1'  # weekly on Mondays (adjust frequency as needed)
+
+jobs:
+  build-chrome:
+    runs-on: ubuntu-latest
+    env:
+      DOCKER_DEFAULT_PLATFORM: linux/amd64
+
+    steps:
+      - name: Checkout Aerokube Images repo
+        uses: actions/checkout@v3
+        with:
+          repository: aerokube/images
+          path: aerokube-images
+
+      - name: Fetch latest Chrome stable version for linux distributive
+        id: get_version
+        run: |
+          apt_info=$(curl -sSL "https://dl.google.com/linux/chrome/deb/dists/stable/main/binary-amd64/Packages")
+          chrome_apt_version=$(echo "$apt_info" | awk -F' ' '
+            $1 == "Package:" && $2 == "google-chrome-stable" {
+              getline; if ($1 == "Version:") { print $2; exit }
+            }')
+          echo "Chrome APT package version: $chrome_apt_version"
+          chrome_driver_version=${chrome_apt_version%%-*}
+
+          echo "Chrome Driver version (derived): $chrome_driver_version"
+          echo "::set-output name=chrome_apt::$chrome_apt_version"
+          echo "::set-output name=chrome_driver::$chrome_driver_version"
+          echo "CHROME_APT_VERSION=$chrome_apt_version" >> $GITHUB_ENV
+          echo "CHROME_DRIVER_VERSION=$chrome_driver_version" >> $GITHUB_ENV
+
+      - name: Download and extract ChromeDriver (version which is latest in debian package list)
+        working-directory: aerokube-images
+        run: |
+          CHROMEDRIVER_ZIP="chromedriver-linux64.zip"
+          CHROMEDRIVER_URL="https://storage.googleapis.com/chrome-for-testing-public/${CHROME_DRIVER_VERSION}/linux64/${CHROMEDRIVER_ZIP}"
+          echo "Downloading ChromeDriver from $CHROMEDRIVER_URL"
+          curl -sSL "$CHROMEDRIVER_URL" --output "$CHROMEDRIVER_ZIP"
+          unzip "$CHROMEDRIVER_ZIP"
+          rm "$CHROMEDRIVER_ZIP"
+
+      - name: Set up Go 1.21
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.21"
+
+      - name: Patch files for build
+        working-directory: aerokube-images
+        run: |
+          sed -i 's/^go [0-9]\+\.[0-9]\+/go 1.21/' go.mod
+          sed -i "s/^ARG VERSION$/ARG VERSION=${CHROME_DRIVER_VERSION}/" static/chrome/Dockerfile
+          sed -i 's/FROM golang:1.22-bullseye as go/FROM golang:1.22-bullseye AS go/' static/chrome/Dockerfile
+
+      - name: Build images CLI
+        working-directory: aerokube-images
+        run: go build -o aerokube-images .
+
+      - name: Build Chrome image with Selenoid tool
+        working-directory: aerokube-images
+        run: |
+          CHROME_TAG=$(echo "${CHROME_DRIVER_VERSION}" | cut -d. -f1-2)
+          echo "Building Chrome image for version ${CHROME_DRIVER_VERSION} (tag ${CHROME_TAG})"
+          ./aerokube-images chrome \
+            -b "${CHROME_APT_VERSION}" \
+            -d "${CHROME_DRIVER_VERSION}" \
+            -t "coherentsolutions/coherent-selenoid-chrome:${CHROME_TAG}"
+
+#      - name: Log in to Docker Hub
+#        uses: docker/login-action@v2
+#        with:
+#          username: ${{ secrets.DOCKERHUB_USERNAME }}
+#          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+#      - name: Push Docker image
+#        run: |
+#          CHROME_TAG=$(echo "${CHROME_DRIVER_VERSION}" | cut -d. -f1-2)
+#          echo "Pushing coherentsolutions/coherent-selenoid-chrome:${CHROME_TAG}"
+#          docker push "coherentsolutions/coherent-selenoid-chrome:${CHROME_TAG}"
