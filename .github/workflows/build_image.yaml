@@ -76,7 +76,6 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
       - name: Push Docker image
         run: |
           CHROME_TAG=$(echo "${CHROME_DRIVER_VERSION}" | cut -d. -f1-2)
