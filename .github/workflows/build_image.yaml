@@ -2,8 +2,8 @@ name: Build and Push Chrome Browser Image
 
 on:
   workflow_dispatch: { }
-  schedule:
-    - cron: '0 0 * * 1'  # weekly on Mondays (adjust frequency as needed)
+#  schedule:
+#    - cron: '0 0 * * 1'
 
 jobs:
   build-chrome:
