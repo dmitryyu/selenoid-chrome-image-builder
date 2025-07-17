@@ -71,14 +71,15 @@ jobs:
             -d "${CHROME_DRIVER_VERSION}" \
             -t "coherentsolutions/coherent-selenoid-chrome:${CHROME_TAG}"
 
-#      - name: Log in to Docker Hub
-#        uses: docker/login-action@v2
-#        with:
-#          username: ${{ secrets.DOCKERHUB_USERNAME }}
-#          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-#      - name: Push Docker image
-#        run: |
-#          CHROME_TAG=$(echo "${CHROME_DRIVER_VERSION}" | cut -d. -f1-2)
+      - name: Push Docker image
+        run: |
+          CHROME_TAG=$(echo "${CHROME_DRIVER_VERSION}" | cut -d. -f1-2)
 #          echo "Pushing coherentsolutions/coherent-selenoid-chrome:${CHROME_TAG}"
 #          docker push "coherentsolutions/coherent-selenoid-chrome:${CHROME_TAG}"
+           docker push "dykallisto/selenoid-chrome:${CHROME_TAG}"
